@@ -1,0 +1,4 @@
+*
+!target/student360-*.jar
+target/*.original
+target/*-sources.jar
