@@ -1,0 +1,40 @@
+# Thin caller: the logic lives in visionEAE/workflows. Push to main deploys; the manual
+# trigger is always available. The deploy job is a neutral no-op until terraform-backend's
+# github-setup.sh has written the GCP variables.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - ".gitignore"
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Reason for the manual deployment (optional)
+        required: false
+        default: Manual trigger from GitHub UI
+
+# One rollout at a time; never cancel-in-progress — a cancelled run can leave an image pushed
+# with no revision rolled.
+concurrency:
+  group: deploy-s360-gateway
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  ci:
+    uses: visionEAE/workflows/.github/workflows/java-ci.yml@main
+
+  deploy:
+    needs: ci
+    if: vars.GCP_WIF_PROVIDER != ''
+    uses: visionEAE/workflows/.github/workflows/java-deploy.yml@main
+    with:
+      service: s360-gateway
+      public-smoke-path: /actuator/health
