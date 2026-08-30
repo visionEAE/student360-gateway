@@ -81,6 +81,7 @@ class GatewayIntegrationTest {
     registry.add("AUTH_SERVICE_URL", () -> DOWNSTREAM.url("/").toString());
     registry.add("CORE_SERVICE_URL", () -> DOWNSTREAM.url("/").toString());
     registry.add("SUPPORT_SERVICE_URL", () -> DOWNSTREAM.url("/").toString());
+    registry.add("NETWORK_SERVICE_URL", () -> DOWNSTREAM.url("/").toString());
     registry.add("LMS_SERVICE_URL", () -> "http://localhost:" + deadPort);
   }
 
@@ -117,6 +118,32 @@ class GatewayIntegrationTest {
         .jsonPath("$.title")
         .isEqualTo("Access denied");
     assertThat(DOWNSTREAM.getRequestCount() - requestsBefore).isZero();
+  }
+
+  @Test
+  void shouldAllowAStudentOnTheSupportNetworkRouteWithTheRightAudience() throws Exception {
+    UUID userId = UUID.randomUUID();
+    String studentToken = tokens.forUser(userId, List.of("STUDENT"), "S-1001");
+    DOWNSTREAM.enqueue(
+        new MockResponse().setBody("{}").addHeader("Content-Type", "application/json"));
+
+    client
+        .get()
+        .uri("/api/network/students/S-1001/support-network")
+        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+        .exchange()
+        .expectStatus()
+        .isOk();
+
+    RecordedRequest forwarded = DOWNSTREAM.takeRequest(5, TimeUnit.SECONDS);
+    assertThat(forwarded).isNotNull();
+    assertThat(forwarded.getHeader(IdentityHeaders.EXTERNAL_REFERENCE)).isEqualTo("S-1001");
+    String authorization = forwarded.getHeader(HttpHeaders.AUTHORIZATION);
+    ServiceIdentity caller =
+        new LocalServiceTokenValidator(
+                "network-service", SECRET.getBytes(StandardCharsets.UTF_8), Clock.systemUTC())
+            .validate(authorization.substring("Bearer ".length()));
+    assertThat(caller.issuer()).isEqualTo("gateway");
   }
 
   @Test
