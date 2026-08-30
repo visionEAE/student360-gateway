@@ -4,6 +4,8 @@ import co.edu.icesi.student360.common.logging.Correlation;
 import co.edu.icesi.student360.common.logging.MdcKeys;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -22,6 +24,7 @@ import reactor.core.publisher.Mono;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class CorrelationWebFilter implements WebFilter {
 
+  private static final Logger log = LoggerFactory.getLogger(CorrelationWebFilter.class);
   private static final Pattern ACCEPTED_ID = Pattern.compile("^[A-Za-z0-9._-]{8,128}$");
 
   @Override
@@ -31,8 +34,18 @@ public class CorrelationWebFilter implements WebFilter {
     ServerHttpRequest request =
         exchange.getRequest().mutate().header(Correlation.REQUEST_ID_HEADER, requestId).build();
     exchange.getResponse().getHeaders().set(Correlation.REQUEST_ID_HEADER, requestId);
+    ServerWebExchange correlated = exchange.mutate().request(request).build();
     return chain
-        .filter(exchange.mutate().request(request).build())
+        .filter(correlated)
+        // One access line per request: the anchor that lets a gateway log line be matched with
+        // the downstream service's lines through requestId and traceId.
+        .doFinally(
+            signal ->
+                log.info(
+                    "{} {} -> {}",
+                    request.getMethod(),
+                    request.getPath().value(),
+                    correlated.getResponse().getStatusCode()))
         .contextWrite(context -> context.put(MdcKeys.REQUEST_ID, requestId));
   }
 
