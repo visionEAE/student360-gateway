@@ -147,6 +147,35 @@ class GatewayIntegrationTest {
   }
 
   @Test
+  void shouldNotDuplicateTheRequestIdWhenTheDownstreamEchoesItToo() throws Exception {
+    // Every real service (student360-common's CorrelationFilter) echoes X-Request-Id on its own
+    // response too, using the same id the gateway forwarded — reproduce that here, since a mock
+    // response that never sets the header (as the other tests do) can't catch the gateway
+    // re-adding a second, identical copy on top of the one it merges in from downstream.
+    String studentToken = tokens.forUser(UUID.randomUUID(), List.of("STUDENT"), "S-1001");
+    DOWNSTREAM.enqueue(
+        new MockResponse()
+            .setBody("[]")
+            .addHeader("Content-Type", "application/json")
+            .addHeader(Correlation.REQUEST_ID_HEADER, "demo-request-dedupe"));
+
+    client
+        .get()
+        .uri("/api/network/students/S-1001/support-network")
+        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken)
+        .header(Correlation.REQUEST_ID_HEADER, "demo-request-dedupe")
+        .exchange()
+        .expectStatus()
+        .isOk()
+        .expectHeader()
+        .valueEquals(Correlation.REQUEST_ID_HEADER, "demo-request-dedupe");
+
+    // DOWNSTREAM's recorded-request queue is shared by the whole test class: leaving this
+    // request undrained would make a later test's takeRequest() pop this one instead of its own.
+    assertThat(DOWNSTREAM.takeRequest(5, TimeUnit.SECONDS)).isNotNull();
+  }
+
+  @Test
   void shouldRewriteIdentityAndAttachServiceTokenForDomainRoutes() throws Exception {
     UUID userId = UUID.randomUUID();
     String studentToken = tokens.forUser(userId, List.of("STUDENT"), "S-1001");
