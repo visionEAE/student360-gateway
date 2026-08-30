@@ -1,0 +1,104 @@
+spring:
+  application:
+    name: gateway
+  reactor:
+    context-propagation: auto       # lets the request id reach the MDC inside reactive chains
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # The one line that binds the platform to its identity provider. Point it at the
+          # institutional IdP's JWKS and the custom SSO is out of the picture.
+          jwk-set-uri: ${AUTH_SERVICE_URL:http://localhost:8081}/.well-known/jwks.json
+          issuer-uri: ${JWT_ISSUER:http://localhost:8081}
+          audiences: student360-api
+  cloud:
+    gateway:
+      server:
+        webflux:
+          observability:
+            enabled: true             # propagates the W3C traceparent on every proxied call
+          routes:
+            - id: auth-service
+              uri: ${AUTH_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/auth/**
+            - id: core-service
+              uri: ${CORE_SERVICE_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/core/**
+              metadata:
+                audience: core-service
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: core-service
+                    fallbackUri: forward:/fallback/student-records
+            - id: lms-service
+              uri: ${LMS_SERVICE_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/lms/**
+              metadata:
+                audience: lms-service
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: lms-service
+                    fallbackUri: forward:/fallback/engagement
+            - id: support-service
+              uri: ${SUPPORT_SERVICE_URL:http://localhost:8084}
+              predicates:
+                - Path=/api/support/**
+              metadata:
+                audience: support-service
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: support-service
+                    fallbackUri: forward:/fallback/support
+
+server:
+  port: ${PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,circuitbreakers
+  health:
+    circuitbreakers:
+      enabled: true
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 6
+        minimum-number-of-calls: 3
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 2
+        register-health-indicator: true
+        # Client errors are answers, not failures: only transport and 5xx trip the breaker.
+        ignore-exceptions:
+          - org.springframework.web.server.ResponseStatusException
+    instances:
+      core-service:
+        base-config: default
+      lms-service:
+        base-config: default
+      support-service:
+        base-config: default
+  timelimiter:
+    configs:
+      default:
+        timeout-duration: 3s
+
+student360:
+  service-name: gateway
+  gateway:
+    allowed-origins: ${FRONTEND_ORIGIN:http://localhost:5173}
+  security:
+    service-token:
+      secret: ${SERVICE_TOKEN_SECRET}
