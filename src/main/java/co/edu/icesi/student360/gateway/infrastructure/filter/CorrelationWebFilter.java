@@ -33,8 +33,22 @@ public class CorrelationWebFilter implements WebFilter {
         resolve(exchange.getRequest().getHeaders().getFirst(Correlation.REQUEST_ID_HEADER));
     ServerHttpRequest request =
         exchange.getRequest().mutate().header(Correlation.REQUEST_ID_HEADER, requestId).build();
+    // Set eagerly too: ProblemDetailResponses (401/403/fallback bodies) reads this header
+    // synchronously off the exchange to embed it in its JSON body, before the response commits.
     exchange.getResponse().getHeaders().set(Correlation.REQUEST_ID_HEADER, requestId);
     ServerWebExchange correlated = exchange.mutate().request(request).build();
+    // Also re-set in beforeCommit: a proxied route's downstream response echoes this same header
+    // too (student360-common's CorrelationFilter), and the gateway merges proxied response
+    // headers in additively on top of the one set above, leaving two identical X-Request-Id
+    // values on the response instead of one. beforeCommit runs after that merge, so set() there
+    // collapses it back down to the single value it should have always been.
+    correlated
+        .getResponse()
+        .beforeCommit(
+            () -> {
+              correlated.getResponse().getHeaders().set(Correlation.REQUEST_ID_HEADER, requestId);
+              return Mono.empty();
+            });
     return chain
         .filter(correlated)
         // One access line per request: the anchor that lets a gateway log line be matched with
