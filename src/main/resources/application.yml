@@ -56,6 +56,17 @@ spring:
                   args:
                     name: support-service
                     fallbackUri: forward:/fallback/support
+            - id: network-service
+              uri: ${NETWORK_SERVICE_URL:http://localhost:8085}
+              predicates:
+                - Path=/api/network/**
+              metadata:
+                audience: network-service
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: network-service
+                    fallbackUri: forward:/fallback/support-network
 
 server:
   port: ${PORT:8080}
@@ -89,6 +100,8 @@ resilience4j:
       lms-service:
         base-config: default
       support-service:
+        base-config: default
+      network-service:
         base-config: default
   timelimiter:
     configs:

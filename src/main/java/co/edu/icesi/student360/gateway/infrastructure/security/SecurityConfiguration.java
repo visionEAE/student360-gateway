@@ -72,6 +72,8 @@ public class SecurityConfiguration {
                     .hasAnyRole(STUDENT, ADVISOR)
                     .pathMatchers("/api/support/advisors/**")
                     .hasAnyRole(ADVISOR, ADMIN)
+                    .pathMatchers("/api/network/**")
+                    .hasAnyRole(STUDENT, ADVISOR, ADMIN)
                     .pathMatchers("/actuator/**")
                     .hasRole(ADMIN)
                     .anyExchange()
