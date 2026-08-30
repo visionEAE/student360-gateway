@@ -46,6 +46,14 @@
       <artifactId>student360-common</artifactId>
       <version>${student360-common.version}</version>
     </dependency>
+    <!-- Loads .env into system properties at startup (local only; a real environment always
+         wins), so the same jar runs locally or on Cloud Run depending on the profile the .env
+         declares. -->
+    <dependency>
+      <groupId>io.github.cdimascio</groupId>
+      <artifactId>dotenv-java</artifactId>
+      <version>3.0.0</version>
+    </dependency>
     <dependency>
       <groupId>org.springframework.cloud</groupId>
       <artifactId>spring-cloud-starter-gateway-server-webflux</artifactId>

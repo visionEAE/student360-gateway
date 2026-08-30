@@ -1,0 +1,17 @@
+# Production deltas only. The gateway is the one service that mints tokens for every
+# downstream call: the audience map pairs each route's logical audience with the callee's URL,
+# fed from the same *_SERVICE_URL variables the routes themselves use — the token's audience and
+# the request's destination can never disagree.
+server:
+  forward-headers-strategy: framework
+
+student360:
+  security:
+    service-token:
+      mode: google
+      secret: ""
+      audience-map:
+        core-service: ${CORE_SERVICE_URL}
+        lms-service: ${LMS_SERVICE_URL}
+        support-service: ${SUPPORT_SERVICE_URL}
+        network-service: ${NETWORK_SERVICE_URL}
