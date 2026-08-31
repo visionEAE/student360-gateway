@@ -54,6 +54,23 @@
       <artifactId>dotenv-java</artifactId>
       <version>3.0.0</version>
     </dependency>
+    <!-- common declares this optional: only callers that MINT Google ID tokens carry it. This
+         service does (it has an audience-map in prod), discovered the hard way when the prod
+         boot died with ClassNotFoundException: GoogleCredentials. -->
+    <dependency>
+      <groupId>com.google.auth</groupId>
+      <artifactId>google-auth-library-oauth2-http</artifactId>
+      <version>1.30.1</version>
+      <exclusions>
+        <!-- grpc-context drags grpc-api in, and a half-present gRPC classpath wakes Spring
+             Cloud Gateway's json-to-gRPC autoconfiguration, which then dies looking for the
+             netty half. Nothing here speaks gRPC. -->
+        <exclusion>
+          <groupId>io.grpc</groupId>
+          <artifactId>grpc-context</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
     <dependency>
       <groupId>org.springframework.cloud</groupId>
       <artifactId>spring-cloud-starter-gateway-server-webflux</artifactId>
