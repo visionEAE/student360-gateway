@@ -15,3 +15,12 @@ student360:
         lms-service: ${LMS_SERVICE_URL}
         support-service: ${SUPPORT_SERVICE_URL}
         network-service: ${NETWORK_SERVICE_URL}
+
+# A 0→1 Java cold start takes 10–20s; the local 3s time limiter turned every first hit on a
+# scaled-to-zero service into an open circuit and a degraded section. Locally everything is
+# always warm, so the tight limit stays there.
+resilience4j:
+  timelimiter:
+    configs:
+      default:
+        timeout-duration: 25s
