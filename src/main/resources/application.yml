@@ -18,6 +18,13 @@ spring:
     gateway:
       server:
         webflux:
+          # google-auth's HTTP client carries grpc-api at runtime (opencensus needs
+          # io.grpc.Context), and its mere presence wakes the json-to-gRPC filter, which then
+          # dies looking for the netty half it does not have. Nothing here speaks gRPC — turn
+          # the filter off instead of amputating a library its own transport needs.
+          filter:
+            json-to-grpc:
+              enabled: false
           observability:
             enabled: true             # propagates the W3C traceparent on every proxied call
           routes:
